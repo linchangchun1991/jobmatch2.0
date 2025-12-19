@@ -1,12 +1,12 @@
 import { Job, MatchResult } from "../types";
 
-// NOTE: Using the API Key provided by the user.
+// DeepSeek API Key (用户提供)
 const DEEPSEEK_API_KEY = "sk-db28451e48904598adcc1b789be67ee4";
-// CRITICAL FIX: Removed Proxy URL. Cloud providers often block "corsproxy.io" as suspicious traffic.
+// 直连地址，不使用任何可能被封禁的 Proxy
 const TARGET_URL = "https://api.deepseek.com/chat/completions";
 
 /**
- * Fisher-Yates Shuffle
+ * Fisher-Yates 随机洗牌算法
  */
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array];
@@ -18,28 +18,29 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 /**
- * 本地快速匹配引擎 (Synchronous & Guaranteed)
- * 作用：瞬间返回结果，不依赖 AI，确保永远不会出现 "0 匹配"。
+ * 本地快速匹配引擎 (同步 & 兜底)
+ * 作用：在 AI 调用失败或为了快速响应时使用。确保用户总是能看到结果。
  */
 export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] => {
   if (!jobs || jobs.length === 0) return [];
 
-  console.log("[LocalEngine] Starting fast match...");
+  console.log("[LocalEngine] 启动本地匹配逻辑...");
 
-  // 1. 提取关键词 (简单分词)
+  // 1. 简单的关键词提取
   const lowerResume = resumeText.toLowerCase();
+  // 匹配中英文单词
   const tokens = lowerResume.match(/[a-zA-Z]{2,}|[\u4e00-\u9fa5]{2,}/g) || [];
   const tokenCounts: Record<string, number> = {};
   tokens.forEach(t => { tokenCounts[t] = (tokenCounts[t] || 0) + 1; });
   
-  // 取前15个高频词
+  // 过滤停用词，提取前 15 个高频词
   const topKeywords = Object.entries(tokenCounts)
     .sort((a, b) => b[1] - a[1])
-    .filter(([k]) => k.length > 1 && !['com', 'the', 'and', 'with', 'for', '公司', '工作', '负责', '项目', '熟悉', '掌握'].includes(k))
+    .filter(([k]) => k.length > 1 && !['com', 'the', 'and', 'with', 'for', '公司', '工作', '负责', '项目', '熟悉', '掌握', '经验', '能力'].includes(k))
     .slice(0, 15)
     .map(k => k[0]);
 
-  // 2. 随机打乱防止枯燥
+  // 2. 随机打乱岗位，避免每次顺序一样
   const shuffledJobs = shuffleArray(jobs);
 
   // 3. 评分逻辑
@@ -56,7 +57,7 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
       }
     });
 
-    // 简历前部内容模糊匹配加分 (模拟核心技能匹配)
+    // 简历前部内容模糊匹配加分
     if (combinedText.includes(lowerResume.slice(0, 10))) score += 5; 
 
     // 新岗位加分 (3天内)
@@ -64,7 +65,7 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     if (daysOld < 3) score += 25;
     else if (daysOld < 7) score += 10;
     
-    // 随机抖动 (让分数看起来更自然，同时给低分岗位一些曝光机会)
+    // 随机因子 (让分数看起来更自然)
     score += Math.floor(Math.random() * 15);
 
     return { job, score, hitCount };
@@ -81,21 +82,21 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     role: item.job.roles,
     location: item.job.location,
     link: item.job.link,
-    // 归一化分数到 85-99 之间，给用户信心
+    // 归一化分数到 85-99 之间
     matchScore: Math.min(99, 85 + Math.floor(item.score % 15)), 
-    // 默认占位符，等待 AI 异步填充
-    reason: "系统正在分析行业匹配度..."
+    // 默认占位符，等待 AI 异步更新
+    reason: "系统正在结合行业趋势进行深度分析..."
   }));
 };
 
 /**
- * AI 深度分析 (Batch Mode)
+ * AI 深度分析 (批量模式)
  * 作用：分批次对已匹配的岗位进行“背调”，生成高质量推荐理由。
  */
 export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[]): Promise<MatchResult[]> => {
   if (matches.length === 0) return [];
 
-  // 构造精简的 Payload，只发必要信息
+  // 构造精简的 Payload
   const jobsPayload = matches.map(m => ({
     id: m.jobId,
     company: m.company,
@@ -103,9 +104,12 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
   }));
 
   const systemPrompt = `
-    角色: 招聘专家。
-    任务: 分析候选人与公司的匹配点。
-    要求: 一句话简评，不要废话。返回JSON数组。
+    角色: 资深招聘专家。
+    任务: 根据候选人简历片段，分析其与目标岗位的匹配点。
+    输出要求: 
+    1. 返回一个纯 JSON 数组，不包含 markdown 标记。
+    2. 数组格式: [{"jobId": "...", "reason": "一句精简的推荐理由(30字以内)"}]
+    3. 理由要专业、吸引人。
   `;
 
   try {
@@ -119,23 +123,26 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
         model: "deepseek-chat",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `简历: ${resumeText.slice(0, 500)}\n岗位: ${JSON.stringify(jobsPayload)}` }
+          { role: "user", content: `简历片段: ${resumeText.slice(0, 600)}\n待分析岗位: ${JSON.stringify(jobsPayload)}` }
         ],
         stream: false,
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 1500
       })
     });
 
     if (!response.ok) {
-       // Silently fail to local match if CORS or API issue occurs
-       throw new Error(`AI API Status: ${response.status}`);
+       // 如果遇到 401/429/500 等错误，抛出异常，触发降级
+       throw new Error(`AI API 响应异常: ${response.status}`);
     }
 
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content || "[]";
-    content = content.replace(/```json/g, '').replace(/```/g, '');
     
+    // 清理可能存在的 markdown 标记
+    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // 尝试截取合法的 JSON 数组部分
     const firstBracket = content.indexOf('[');
     const lastBracket = content.lastIndexOf(']');
     if (firstBracket !== -1 && lastBracket !== -1) {
@@ -144,20 +151,15 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
 
     const aiResults = JSON.parse(content);
     
-    // Merge AI reasons back into original matches
+    // 将 AI 结果合并回原始数据
     return matches.map(m => {
       const aiRes = aiResults.find((r: any) => r.jobId === m.jobId);
       return aiRes ? { ...m, reason: aiRes.reason } : m;
     });
 
   } catch (e) {
-    console.warn("AI Analysis skipped (using local fallback)", e);
+    console.warn("AI 分析服务暂时不可用，已切换至本地模式:", e);
     // 出错时返回原样，保持界面不崩
     return matches;
   }
-};
-
-// 兼容旧接口，直接走本地快速匹配
-export const matchResumeToJobs = async (resumeText: string, availableJobs: Job[]): Promise<MatchResult[]> => {
-  return quickLocalMatch(resumeText, availableJobs);
 };

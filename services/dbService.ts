@@ -12,8 +12,7 @@ export const dbService = {
 
       if (error) {
         console.error("[Supabase] 获取数据失败:", JSON.stringify(error, null, 2));
-        // 增加错误提示，帮助新手定位问题
-        alert(`数据库连接出错: ${error.message}\nCode: ${error.code}\n请检查 Supabase Key 是否正确，或是否已创建 jobs 表。`);
+        alert(`数据库连接出错: ${error.message}\n错误代码: ${error.code}\n请联系管理员检查 Supabase 配置。`);
         return [];
       }
 
@@ -21,14 +20,13 @@ export const dbService = {
       return (data || []) as Job[];
     } catch (e: any) {
       console.error("[DB] 网络异常:", e);
-      alert("网络请求异常: " + (e.message || "未知错误，请检查控制台"));
+      alert("网络请求异常: " + (e.message || "未知错误，请检查网络连接"));
       return [];
     }
   },
 
   insertJobs: async (jobs: Job[]): Promise<boolean> => {
     try {
-      // 这里的 jobs 数组字段必须和数据库里的列名一一对应
       const { error } = await supabase
         .from('jobs')
         .insert(jobs);
@@ -38,16 +36,14 @@ export const dbService = {
         
         let tip = "";
         if (error.code === '42501') {
-          tip = "\n[提示] 权限拒绝 (RLS Policy Violation)。请在 Supabase 后台 'Table Editor' -> 'jobs' -> 'RLS' 中关闭 RLS，或添加允许 anon (public) 角色 INSERT 的策略。";
+          tip = "\n[提示] 权限拒绝。请联系管理员检查 RLS 策略。";
         } else if (error.code === '42P01') {
-           tip = "\n[提示] 表不存在。请确保在 Supabase 创建了名为 'jobs' 的表。";
+           tip = "\n[提示] 表不存在。数据库尚未初始化 jobs 表。";
         } else if (error.code === '23505') {
-           tip = "\n[提示] ID 重复。请勿重复提交相同的数据。";
-        } else if (error.message.includes("column")) {
-           tip = "\n[提示] 数据库表结构不匹配，请检查字段名是否与代码一致 (raw_text, company, roles, location, link, id)。";
+           tip = "\n[提示] 数据重复。部分岗位 ID 已存在。";
         }
 
-        alert(`保存失败: ${error.message}\nCode: ${error.code}${tip}`);
+        alert(`保存失败: ${error.message}\n代码: ${error.code}${tip}`);
         return false;
       } else {
         console.log(`[Supabase] 成功上传 ${jobs.length} 个岗位`);
@@ -63,13 +59,11 @@ export const dbService = {
 
   deleteAllJobs: async (): Promise<boolean> => {
     try {
-      // Supabase delete requires a where clause.
-      // Assuming 'id' is a UUID and never equals '0000', this deletes all rows.
-      // Alternatively, use a not-equal filter on a known column.
+      // 删除所有非空 ID 的数据
       const { error, count } = await supabase
         .from('jobs')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all valid UUIDs
+        .neq('id', '00000000-0000-0000-0000-000000000000'); 
 
       if (error) {
         console.error("[Supabase] 删除失败:", error);

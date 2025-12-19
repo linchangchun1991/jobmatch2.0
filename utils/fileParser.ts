@@ -3,8 +3,7 @@ import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
 
 // 初始化 PDF Worker
-// 关键修复：不要让 Vite 尝试打包 worker，而是直接指向稳定的 CDN 地址
-// 这解决了生产环境 "Setting up fake worker failed" 的常见错误
+// 强制使用 CDN，避免 Zeabur 构建时的路径问题
 if (typeof window !== 'undefined') {
   // @ts-ignore
   const pdfjs = pdfjsLib.default || pdfjsLib;
@@ -38,7 +37,7 @@ const parsePdf = async (file: File, onProgress?: (status: string) => void): Prom
     const pdf = await loadingTask.promise;
     
     const totalPages = pdf.numPages;
-    onProgress?.(`文档共 ${totalPages} 页，正在解析...`);
+    onProgress?.(`文档共 ${totalPages} 页，正在逐页解析...`);
 
     let fullText = '';
     for (let i = 1; i <= totalPages; i++) {
@@ -46,7 +45,7 @@ const parsePdf = async (file: File, onProgress?: (status: string) => void): Prom
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map((item: any) => item.str).join(' ');
       fullText += pageText + '\n';
-      // Slight delay to prevent UI freezing
+      // 避免 UI 冻结
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
     }
     
@@ -71,7 +70,7 @@ const parseDocx = async (file: File, onProgress?: (status: string) => void): Pro
 };
 
 const parseImage = async (file: File, onProgress?: (status: string) => void): Promise<string> => {
-  onProgress?.('正在初始化 OCR 视觉引擎...');
+  onProgress?.('正在初始化 OCR 视觉识别引擎...');
   try {
     const result = await Tesseract.recognize(
       file,
