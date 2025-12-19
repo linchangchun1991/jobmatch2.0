@@ -3,7 +3,8 @@ import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
 
 // 初始化 PDF Worker
-// 强制使用 CDN，避免 Zeabur 构建时的路径问题
+// 关键修复：强制指向与 package.json 版本 (3.11.174) 一致的 CDN
+// 这避免了 Vercel/Zeabur 构建环境中找不到本地 worker 文件的常见错误
 if (typeof window !== 'undefined') {
   // @ts-ignore
   const pdfjs = pdfjsLib.default || pdfjsLib;
@@ -20,7 +21,12 @@ export const parseFile = async (file: File, onProgress?: (status: string) => voi
   } else if (fileType.startsWith('image/')) {
     return parseImage(file, onProgress);
   } else {
-    throw new Error('不支持的文件格式。仅支持 PDF, Word (docx) 或 图片。');
+    // 尝试作为文本读取
+    try {
+        return await file.text();
+    } catch(e) {
+        throw new Error('不支持的文件格式。仅支持 PDF, Word (docx) 或 图片。');
+    }
   }
 };
 
@@ -45,7 +51,8 @@ const parsePdf = async (file: File, onProgress?: (status: string) => void): Prom
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map((item: any) => item.str).join(' ');
       fullText += pageText + '\n';
-      // 避免 UI 冻结
+      
+      // 每5页暂停一下，避免浏览器卡死
       if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
     }
     
@@ -53,7 +60,7 @@ const parsePdf = async (file: File, onProgress?: (status: string) => void): Prom
 
   } catch (error: any) {
     console.error("PDF Parsing Error:", error);
-    throw new Error(`PDF 解析失败: ${error.message || '未知错误'}`);
+    throw new Error(`PDF 解析失败: ${error.message || '文档可能已加密或损坏'}`);
   }
 };
 

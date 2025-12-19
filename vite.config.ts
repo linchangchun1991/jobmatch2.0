@@ -7,18 +7,20 @@ export default defineConfig({
   server: {
     host: true
   },
-  preview: {
-    host: true,
-    port: 3000
-  },
   build: {
     outDir: 'dist',
-    target: 'esnext', // 关键：允许 Top-level await 等现代语法
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
+    target: 'esnext', // Required for top-level await in some libraries
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'pdf-worker': ['pdfjs-dist'],
+          'vendor': ['react', 'react-dom', 'lucide-react']
+        }
+      }
+    }
   },
   optimizeDeps: {
-    include: ['pdfjs-dist'], // 强制预构建 PDF 库
+    include: ['pdfjs-dist'],
   }
 })

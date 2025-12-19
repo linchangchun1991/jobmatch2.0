@@ -2,7 +2,7 @@ import { Job, MatchResult } from "../types";
 
 // DeepSeek API Key (用户提供)
 const DEEPSEEK_API_KEY = "sk-db28451e48904598adcc1b789be67ee4";
-// 直连地址，不使用任何可能被封禁的 Proxy
+// 直连地址，不使用任何代理，防止云平台封禁
 const TARGET_URL = "https://api.deepseek.com/chat/completions";
 
 /**
@@ -36,7 +36,7 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
   // 过滤停用词，提取前 15 个高频词
   const topKeywords = Object.entries(tokenCounts)
     .sort((a, b) => b[1] - a[1])
-    .filter(([k]) => k.length > 1 && !['com', 'the', 'and', 'with', 'for', '公司', '工作', '负责', '项目', '熟悉', '掌握', '经验', '能力'].includes(k))
+    .filter(([k]) => k.length > 1 && !['com', 'the', 'and', 'with', 'for', '公司', '工作', '负责', '项目', '熟悉', '掌握', '经验', '能力', '我们', '这个'].includes(k))
     .slice(0, 15)
     .map(k => k[0]);
 
@@ -96,7 +96,7 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
 export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[]): Promise<MatchResult[]> => {
   if (matches.length === 0) return [];
 
-  // 构造精简的 Payload
+  // 构造精简的 Payload，防止 Token 溢出
   const jobsPayload = matches.map(m => ({
     id: m.jobId,
     company: m.company,
@@ -107,9 +107,9 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
     角色: 资深招聘专家。
     任务: 根据候选人简历片段，分析其与目标岗位的匹配点。
     输出要求: 
-    1. 返回一个纯 JSON 数组，不包含 markdown 标记。
+    1. 返回一个纯 JSON 数组，严禁包含 markdown 标记 (如 \`\`\`json)。
     2. 数组格式: [{"jobId": "...", "reason": "一句精简的推荐理由(30字以内)"}]
-    3. 理由要专业、吸引人。
+    3. 理由要专业、吸引人，强调候选人优势。
   `;
 
   try {
@@ -139,7 +139,7 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content || "[]";
     
-    // 清理可能存在的 markdown 标记
+    // 清理可能存在的 markdown 标记 (API 有时会不听话)
     content = content.replace(/```json/g, '').replace(/```/g, '').trim();
     
     // 尝试截取合法的 JSON 数组部分
