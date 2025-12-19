@@ -1,0 +1,30 @@
+{
+  "name": "highmark-matcher",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview --host --port $PORT",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "framer-motion": "^10.18.0",
+    "lucide-react": "^0.294.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "xlsx": "^0.18.5",
+    "pdfjs-dist": "3.11.174",
+    "mammoth": "^1.6.0",
+    "tesseract.js": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  }
+}
