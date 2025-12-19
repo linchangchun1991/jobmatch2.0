@@ -2,12 +2,12 @@ import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
 
-// Ensure PDF.js worker is loaded correctly for Vite
-const pdfjs = (pdfjsLib as any).default || pdfjsLib;
-
-// Use the specific version that matches package.json to avoid mismatches
-if (typeof window !== 'undefined' && pdfjs && !pdfjs.GlobalWorkerOptions.workerSrc) {
-  // Fallback to CDN for the worker if local bundling fails
+// 初始化 PDF Worker
+// 关键修复：不要让 Vite 尝试打包 worker，而是直接指向稳定的 CDN 地址
+// 这解决了生产环境 "Setting up fake worker failed" 的常见错误
+if (typeof window !== 'undefined') {
+  // @ts-ignore
+  const pdfjs = pdfjsLib.default || pdfjsLib;
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
 }
 
@@ -31,8 +31,8 @@ const parsePdf = async (file: File, onProgress?: (status: string) => void): Prom
   try {
     const arrayBuffer = await file.arrayBuffer();
     
-    // Explicit check
-    if (!pdfjs) throw new Error('PDF 引擎未加载');
+    // @ts-ignore
+    const pdfjs = pdfjsLib.default || pdfjsLib;
 
     const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;

@@ -13,5 +13,12 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    target: 'esnext', // 关键：允许 Top-level await 等现代语法
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+  },
+  optimizeDeps: {
+    include: ['pdfjs-dist'], // 强制预构建 PDF 库
   }
 })
