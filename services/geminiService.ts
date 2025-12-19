@@ -2,9 +2,8 @@ import { Job, MatchResult } from "../types";
 
 // NOTE: Using the API Key provided by the user.
 const DEEPSEEK_API_KEY = "sk-db28451e48904598adcc1b789be67ee4";
-const PROXY_URL = "https://corsproxy.io/?";
+// CRITICAL FIX: Removed Proxy URL. Cloud providers often block "corsproxy.io" as suspicious traffic.
 const TARGET_URL = "https://api.deepseek.com/chat/completions";
-const DEEPSEEK_API_URL = PROXY_URL + TARGET_URL;
 
 /**
  * Fisher-Yates Shuffle
@@ -85,7 +84,7 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     // 归一化分数到 85-99 之间，给用户信心
     matchScore: Math.min(99, 85 + Math.floor(item.score % 15)), 
     // 默认占位符，等待 AI 异步填充
-    reason: "⚡️ 海马AI正在联网分析企业行业地位与业务趋势..."
+    reason: "系统正在分析行业匹配度..."
   }));
 };
 
@@ -104,23 +103,13 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
   }));
 
   const systemPrompt = `
-    角色: "海马职加" 首席行业分析师。
-    
-    任务: 对列表中的公司进行【深度背景背调】。
-    
-    要求:
-    1. **必须联网分析(模拟)**：识别该公司的行业地位（如：独角兽、上市公司、细分赛道领头羊、初创黑马）。
-    2. **结合简历**：用一句话将候选人能力与公司业务痛点连接。
-    3. **拒绝废话**：不要说“匹配度高”，直接说“该公司近期正在发力XX业务...”。
-    4. **格式**：返回 JSON 数组，包含 { "jobId": "...", "reason": "..." }。
-    
-    示例:
-    - "Shein作为跨境电商独角兽，急需高并发经验，候选人的Spring Cloud实战完美契合其供应链重构需求。"
-    - "腾讯作为社交赛道霸主，其混元大模型团队正在扩招，候选人的NLP背景是核心加分项。"
+    角色: 招聘专家。
+    任务: 分析候选人与公司的匹配点。
+    要求: 一句话简评，不要废话。返回JSON数组。
   `;
 
   try {
-    const response = await fetch(DEEPSEEK_API_URL, {
+    const response = await fetch(TARGET_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -130,15 +119,18 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
         model: "deepseek-chat",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `简历摘要: ${resumeText.slice(0, 1000)}\n\n待分析岗位列表: ${JSON.stringify(jobsPayload)}` }
+          { role: "user", content: `简历: ${resumeText.slice(0, 500)}\n岗位: ${JSON.stringify(jobsPayload)}` }
         ],
         stream: false,
-        temperature: 0.7, // 稍微提高创造性以获取更多公司背景知识
-        max_tokens: 2000
+        temperature: 0.7,
+        max_tokens: 1000
       })
     });
 
-    if (!response.ok) throw new Error("AI API Error");
+    if (!response.ok) {
+       // Silently fail to local match if CORS or API issue occurs
+       throw new Error(`AI API Status: ${response.status}`);
+    }
 
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content || "[]";
@@ -159,7 +151,7 @@ export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[
     });
 
   } catch (e) {
-    console.warn("Batch Analysis Failed, keeping local reasons", e);
+    console.warn("AI Analysis skipped (using local fallback)", e);
     // 出错时返回原样，保持界面不崩
     return matches;
   }

@@ -45,18 +45,18 @@ export default function App() {
              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-nebula-500 to-aurora-500 flex items-center justify-center shadow-lg shadow-nebula-500/20">
                 <Zap className="text-white fill-white" size={20} />
              </div>
-             <span className="text-sm font-mono text-aurora-400 tracking-widest border border-aurora-500/20 px-2 py-1 rounded bg-aurora-500/5">INTERNAL SYSTEM v2.5</span>
+             <span className="text-sm font-mono text-aurora-400 tracking-widest border border-aurora-500/20 px-2 py-1 rounded bg-aurora-500/5">INTERNAL SYSTEM</span>
           </div>
           
           <div className="mb-4">
             <h1 className="text-6xl md:text-7xl font-bold text-white tracking-tight">Highmark</h1>
             <p className="mt-4 text-lg md:text-xl text-aurora-300 font-medium tracking-widest font-mono">
-              扶稳留学生，走好职场第一步
+              Intelligence Dashboard
             </p>
           </div>
           
           <p className="text-slate-400 text-lg tracking-wide mt-8">
-            海马职加 · 智能人岗匹配引擎
+            Internal Data & Matching System
           </p>
         </div>
 
@@ -76,9 +76,9 @@ export default function App() {
             }`}>
               <UserCheck size={28} />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-nebula-400 transition-colors">交付端 / 教练</h3>
+            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-nebula-400 transition-colors">Delivery / Coach</h3>
             <p className="text-slate-400 text-sm leading-relaxed">
-              进入匹配引擎，上传简历(支持PDF/图片)，一键生成推荐报告。
+              Match candidates with job database.
             </p>
             <div className={`absolute bottom-0 left-0 h-1 bg-nebula-500 transition-all duration-300 ${selectedRole === 'coach' ? 'w-full' : 'w-0 group-hover:w-full'}`}></div>
           </div>
@@ -97,9 +97,9 @@ export default function App() {
             }`}>
               <Briefcase size={28} />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-aurora-400 transition-colors">供给端 / BD</h3>
+            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-aurora-400 transition-colors">Supply / BD</h3>
             <p className="text-slate-400 text-sm leading-relaxed">
-              管理企业资源，批量清洗招聘JD文本，维护实时岗位数据库。
+              Data entry and management.
             </p>
             <div className={`absolute bottom-0 left-0 h-1 bg-aurora-500 transition-all duration-300 ${selectedRole === 'bd' ? 'w-full' : 'w-0 group-hover:w-full'}`}></div>
           </div>
@@ -117,7 +117,7 @@ export default function App() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                   <input 
                     type="password" 
-                    placeholder={selectedRole === 'bd' ? "请输入 BD 访问码" : "请输入教练访问码"}
+                    placeholder="Enter Access Code"
                     className="w-full pl-10 pr-4 py-3 bg-transparent text-white placeholder-slate-600 focus:outline-none font-mono tracking-widest text-lg"
                     value={passcodeInput}
                     onChange={(e) => setPasscodeInput(e.target.value)}
@@ -130,7 +130,7 @@ export default function App() {
               </div>
             </div>
             <p className="text-center text-slate-600 text-xs mt-4 font-mono">
-              {selectedRole === 'bd' ? 'SECURE ZONE: SUPPLY CHAIN' : 'SECURE ZONE: DELIVERY CORE'}
+              SECURE ZONE: AUTHORIZED PERSONNEL ONLY
             </p>
           </form>
         )}
@@ -147,7 +147,7 @@ export default function App() {
           {/* Top Navigation Bar */}
           <nav className="h-16 border-b border-glass-border bg-cosmos-900/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-50">
             <div className="flex items-center gap-3">
-               <div className="font-bold text-lg text-white tracking-tight">HMG丨Highmark career留学生就业求职辅导首选</div>
+               <div className="font-bold text-lg text-white tracking-tight">HMG System</div>
             </div>
             
             <div className="flex items-center gap-6">
@@ -167,7 +167,7 @@ export default function App() {
                 className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors group"
               >
                 <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" />
-                退出
+                Exit
               </button>
             </div>
           </nav>
