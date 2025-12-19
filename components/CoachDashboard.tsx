@@ -1,25 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { HolographicLoader } from './HolographicLoader';
 import { dbService } from '../services/dbService';
 import { quickLocalMatch, batchAnalyzeJobs } from '../services/geminiService';
 import { parseFile } from '../utils/fileParser';
 import { MatchResult } from '../types';
 import { Button } from './ui/Button';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MapPin, ArrowRight, Building2, BrainCircuit, RefreshCw, FileSpreadsheet, Upload, FileText, X, Loader2, Zap } from 'lucide-react';
+import { Sparkles, MapPin, ArrowRight, Building2, BrainCircuit, RefreshCw, FileSpreadsheet, Upload, X, Loader2, Zap } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const CoachDashboard: React.FC = () => {
   const [resumeText, setResumeText] = useState('');
-  const [isLoaderActive, setIsLoaderActive] = useState(false); // 控制全息动画
+  const [isLoaderActive, setIsLoaderActive] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<MatchResult[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
-  // AI Analysis Progress State
   const [analyzingIndices, setAnalyzingIndices] = useState<number[]>([]);
   
-  // File Upload State
   const [isParsing, setIsParsing] = useState(false);
   const [parseStatus, setParseStatus] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +55,6 @@ export const CoachDashboard: React.FC = () => {
     setResults([]);
     
     try {
-      // 1. 获取数据库
       const jobs = await dbService.getJobs();
       if (jobs.length === 0) {
         setErrorMsg("数据库为空：请先联系BD部门录入岗位数据");
@@ -67,12 +62,9 @@ export const CoachDashboard: React.FC = () => {
         return;
       }
 
-      // 2. 执行本地快速匹配 (Synchronous, guaranteed results)
       const localMatches = quickLocalMatch(resumeText, jobs);
       
       if (localMatches.length === 0) {
-        // Fallback theory: quickLocalMatch should always return something if jobs exist
-        // But just in case:
         setErrorMsg("匹配异常：未找到任何岗位，请检查数据库");
         setIsLoaderActive(false);
         return;
@@ -86,15 +78,12 @@ export const CoachDashboard: React.FC = () => {
     }
   };
 
-  // 全息动画播放完毕后的回调
   const onAnimationComplete = () => {
     setIsLoaderActive(false);
     setShowResults(true);
-    // 动画结束后，立即触发 AI 深度分析
     runDeepAnalysis(results);
   };
 
-  // 分批次调用 AI 进行深度分析
   const runDeepAnalysis = async (initialMatches: MatchResult[]) => {
     const BATCH_SIZE = 5;
     const total = initialMatches.length;
@@ -103,15 +92,12 @@ export const CoachDashboard: React.FC = () => {
       const end = Math.min(i + BATCH_SIZE, total);
       const batch = initialMatches.slice(i, end);
       
-      // 标记当前正在分析的索引，用于UI展示 Loading 态
       const currentIndices = Array.from({ length: end - i }, (_, k) => i + k);
       setAnalyzingIndices(prev => [...prev, ...currentIndices]);
 
-      // 异步请求 AI
       try {
         const enrichedBatch = await batchAnalyzeJobs(resumeText, batch);
         
-        // 更新结果集
         setResults(prev => {
           const next = [...prev];
           for (let k = 0; k < enrichedBatch.length; k++) {
@@ -124,7 +110,6 @@ export const CoachDashboard: React.FC = () => {
       } catch (e) {
         console.error("Batch analysis failed", e);
       } finally {
-        // 移除 Loading 态
         setAnalyzingIndices(prev => prev.filter(idx => !currentIndices.includes(idx)));
       }
     }
@@ -154,54 +139,31 @@ export const CoachDashboard: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto py-6">
-      {/* Header Section */}
       {!showResults && !isLoaderActive && (
         <header className="mb-10 text-center">
-          <motion.div 
-             initial={{ opacity: 0, scale: 0.9 }}
-             animate={{ opacity: 1, scale: 1 }}
-             className="inline-block"
-          >
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 glow-text">AI 智能人岗匹配中台</h1>
+          <div className="inline-block">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">AI 智能人岗匹配中台</h1>
             <div className="h-1 w-full bg-gradient-to-r from-transparent via-nebula-500 to-transparent opacity-50"></div>
-          </motion.div>
+          </div>
           <p className="text-slate-400 mt-4 font-mono text-sm">DeepSeek V3 核心已连接 • 支持多模态简历解析</p>
         </header>
       )}
 
-      {/* Error Message */}
       {errorMsg && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }} 
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center rounded-lg font-mono flex items-center justify-center gap-2"
-        >
+        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center rounded-lg font-mono flex items-center justify-center gap-2">
           <X size={16} /> [系统警报] {errorMsg}
-        </motion.div>
+        </div>
       )}
 
-      {/* Input Section */}
       {!isLoaderActive && !showResults && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-cosmos-900/60 backdrop-blur-xl rounded-2xl border border-glass-border p-8 shadow-2xl max-w-3xl mx-auto relative overflow-hidden"
-        >
-          {/* Progress Overlay for File Parsing */}
-          <AnimatePresence>
-            {isParsing && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-50 bg-cosmos-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6"
-              >
-                <Loader2 className="animate-spin text-nebula-500 w-12 h-12 mb-4" />
-                <h3 className="text-xl font-bold text-white mb-2">正在智能识别简历</h3>
-                <p className="text-aurora-400 font-mono text-sm animate-pulse">{parseStatus}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="bg-cosmos-900/60 backdrop-blur-xl rounded-2xl border border-glass-border p-8 shadow-2xl max-w-3xl mx-auto relative overflow-hidden">
+          {isParsing && (
+            <div className="absolute inset-0 z-50 bg-cosmos-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+              <Loader2 className="animate-spin text-nebula-500 w-12 h-12 mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">正在智能识别简历</h3>
+              <p className="text-aurora-400 font-mono text-sm">{parseStatus}</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between mb-4">
              <label className="text-sm font-bold text-slate-200 flex items-center gap-2">
@@ -244,22 +206,17 @@ export const CoachDashboard: React.FC = () => {
                启动 AI 匹配引擎
              </Button>
           </div>
-        </motion.div>
+        </div>
       )}
 
-      {/* Matching Loader */}
       {isLoaderActive && (
         <div className="max-w-2xl mx-auto mt-20">
           <HolographicLoader onComplete={onAnimationComplete} />
         </div>
       )}
 
-      {/* Results Section */}
       {showResults && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
+        <div>
           <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-8 border-b border-glass-border pb-4 gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -286,13 +243,9 @@ export const CoachDashboard: React.FC = () => {
               const isAiReady = !match.reason.includes("⚡️");
 
               return (
-                <motion.div 
+                <div 
                   key={match.jobId}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  whileHover={{ scale: 1.01, borderColor: 'rgba(139, 92, 246, 0.5)' }}
-                  className="bg-cosmos-900/40 backdrop-blur-md rounded-xl border border-glass-border p-6 hover:shadow-[0_0_30px_rgba(139,92,246,0.1)] transition-all group relative overflow-hidden"
+                  className="bg-cosmos-900/40 backdrop-blur-md rounded-xl border border-glass-border p-6 hover:shadow-lg transition-all group relative overflow-hidden"
                 >
                   <div 
                     className={`absolute left-0 top-0 bottom-0 w-1 ${
@@ -351,17 +304,17 @@ export const CoachDashboard: React.FC = () => {
                         href={match.link} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="group/btn relative inline-flex items-center justify-center w-full md:w-auto gap-2 bg-white text-cosmos-950 px-6 py-3 rounded-lg text-sm font-bold hover:bg-nebula-400 hover:text-white transition-all shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:shadow-[0_0_20px_rgba(139,92,246,0.6)]"
+                        className="group/btn relative inline-flex items-center justify-center w-full md:w-auto gap-2 bg-white text-cosmos-950 px-6 py-3 rounded-lg text-sm font-bold hover:bg-nebula-400 hover:text-white transition-all"
                       >
-                        立即投递 <ArrowRight size={16} className="group/btn:translate-x-1 transition-transform" />
+                        立即投递 <ArrowRight size={16} />
                       </a>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

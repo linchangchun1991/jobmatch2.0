@@ -3,15 +3,14 @@ import { parseJobText } from '../utils/jobParser';
 import { Job, ParseResult } from '../types';
 import { dbService } from '../services/dbService';
 import { Button } from './ui/Button';
-import { ClipboardList, UploadCloud, AlertCircle, CheckCircle2, Database, Terminal, FileCode, Trash2, PlusCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { UploadCloud, AlertCircle, CheckCircle2, Database, Terminal, FileCode, Trash2, PlusCircle } from 'lucide-react';
 
 export const BdDashboard: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [parsedJobs, setParsedJobs] = useState<ParseResult[]>([]);
   const [isSaved, setIsSaved] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // 新增：保存加载状态
+  const [isSaving, setIsSaving] = useState(false);
   const [dbCount, setDbCount] = useState(0);
 
   useEffect(() => {
@@ -25,29 +24,23 @@ export const BdDashboard: React.FC = () => {
 
   const handleParse = () => {
     setIsParsing(true);
+    // Simple timeout to allow UI update
     setTimeout(() => {
       const results = parseJobText(inputText);
       setParsedJobs(results);
       setIsParsing(false);
       setIsSaved(false);
-    }, 400);
+    }, 100);
   };
 
   const handleAppend = async () => {
-    // 1. 获取有效数据
     const validJobs = parsedJobs.filter(r => r.valid && r.data).map(r => r.data!) as Job[];
     if (validJobs.length === 0) return;
     
-    // 2. 开启 Loading，禁用按钮，防止连点 (Fix duplicate key error)
     setIsSaving(true);
-    
-    // 3. 执行插入，等待结果
     const success = await dbService.insertJobs(validJobs);
-    
-    // 4. 关闭 Loading
     setIsSaving(false);
 
-    // 5. 只有成功才清空表单，失败则保留以便用户检查
     if (success) {
       setIsSaved(true);
       setInputText('');
@@ -99,12 +92,8 @@ export const BdDashboard: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-200px)]">
-        {/* Input Area - Code Editor Style */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="bg-cosmos-900/50 backdrop-blur-md rounded-xl border border-glass-border flex flex-col h-full overflow-hidden shadow-2xl"
-        >
+        {/* Input Area */}
+        <div className="bg-cosmos-900/50 backdrop-blur-md rounded-xl border border-glass-border flex flex-col h-full overflow-hidden shadow-2xl">
           <div className="bg-cosmos-950/50 border-b border-glass-border p-3 flex items-center justify-between">
             <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
               <Terminal size={16} className="text-nebula-500" />
@@ -128,15 +117,10 @@ export const BdDashboard: React.FC = () => {
               执行清洗解析
             </Button>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Preview Area - Data Grid Style */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-cosmos-900/50 backdrop-blur-md rounded-xl border border-glass-border flex flex-col h-full overflow-hidden shadow-2xl"
-        >
+        {/* Preview Area */}
+        <div className="bg-cosmos-900/50 backdrop-blur-md rounded-xl border border-glass-border flex flex-col h-full overflow-hidden shadow-2xl">
           <div className="bg-cosmos-950/50 border-b border-glass-border p-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-slate-300 flex items-center gap-2">
                <FileCode size={16} className="text-aurora-500" />
@@ -195,7 +179,6 @@ export const BdDashboard: React.FC = () => {
              ) : (
                <span className="text-xs text-slate-500 font-mono">准备就绪</span>
              )}
-            {/* 修复：增加 isLoading 属性，且 disabled 逻辑加入 isSaving */}
             <Button 
               variant="secondary" 
               onClick={handleAppend} 
@@ -206,7 +189,7 @@ export const BdDashboard: React.FC = () => {
               确认并追加入库
             </Button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
