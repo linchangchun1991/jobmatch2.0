@@ -65,12 +65,11 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     return { job, score };
   });
 
-  // 4. 排序并截取 Top 20
+  // 4. 排序
   scoredJobs.sort((a, b) => b.score - a.score);
-  const topResults = scoredJobs.slice(0, 20);
-
-  // 5. 格式化输出
-  return topResults.map(item => ({
+  
+  // 5. 返回所有结果 (由前端控制显示数量)
+  return scoredJobs.map(item => ({
     jobId: item.job.id,
     company: item.job.company,
     role: item.job.roles,

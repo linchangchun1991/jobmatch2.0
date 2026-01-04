@@ -1,24 +1,36 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { HolographicLoader } from './HolographicLoader';
 import { dbService } from '../services/dbService';
 import { quickLocalMatch } from '../services/geminiService'; // 仅导入本地匹配
 import { parseFile } from '../utils/fileParser';
 import { MatchResult } from '../types';
 import { Button } from './ui/Button';
-import { Sparkles, MapPin, ArrowRight, Building2, BrainCircuit, RefreshCw, FileSpreadsheet, Upload, X, Loader2, Zap } from 'lucide-react';
+import { Sparkles, MapPin, ArrowRight, Building2, BrainCircuit, RefreshCw, FileSpreadsheet, Upload, X, Loader2, Shuffle } from 'lucide-react';
 import * as XLSX from 'xlsx';
+
+const BATCH_SIZE = 50;
 
 export const CoachDashboard: React.FC = () => {
   const [resumeText, setResumeText] = useState('');
   const [isLoaderActive, setIsLoaderActive] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<MatchResult[]>([]);
+  
+  // 核心数据状态
+  const [allMatches, setAllMatches] = useState<MatchResult[]>([]);
+  const [batchIndex, setBatchIndex] = useState(0);
+  
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
   const [isParsing, setIsParsing] = useState(false);
   const [parseStatus, setParseStatus] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 计算当前批次显示的岗位
+  const displayedMatches = useMemo(() => {
+    const start = batchIndex * BATCH_SIZE;
+    return allMatches.slice(start, start + BATCH_SIZE);
+  }, [allMatches, batchIndex]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,7 +64,8 @@ export const CoachDashboard: React.FC = () => {
     setIsLoaderActive(true);
     setShowResults(false);
     setErrorMsg(null);
-    setResults([]);
+    setAllMatches([]);
+    setBatchIndex(0);
     
     try {
       const jobs = await dbService.getJobs();
@@ -70,7 +83,7 @@ export const CoachDashboard: React.FC = () => {
         return;
       }
 
-      setResults(localMatches);
+      setAllMatches(localMatches);
 
     } catch (e) {
       setErrorMsg("无法连接至核心数据库，请检查网络连接。");
@@ -81,14 +94,21 @@ export const CoachDashboard: React.FC = () => {
   const onAnimationComplete = () => {
     setIsLoaderActive(false);
     setShowResults(true);
-    // 不再调用 runDeepAnalysis
+  };
+
+  const handleNextBatch = () => {
+    const maxIndex = Math.ceil(allMatches.length / BATCH_SIZE) - 1;
+    setBatchIndex(prev => prev >= maxIndex ? 0 : prev + 1);
+    // 滚动到顶部，提升体验
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleExport = () => {
-    if (results.length === 0) return;
+    if (displayedMatches.length === 0) return;
 
-    const exportData = results.map((r, index) => ({
-      "推荐排名": index + 1,
+    // 仅导出当前批次，符合"所见即所得"
+    const exportData = displayedMatches.map((r, index) => ({
+      "推荐排名": (batchIndex * BATCH_SIZE) + index + 1,
       "公司名称": r.company,
       "工作地点": r.location,
       "匹配岗位": r.role,
@@ -102,7 +122,7 @@ export const CoachDashboard: React.FC = () => {
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, "岗位推荐表");
-    XLSX.writeFile(wb, `Highmark_推荐报告_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `Highmark_推荐报告_Batch${batchIndex + 1}_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   return (
@@ -190,27 +210,40 @@ export const CoachDashboard: React.FC = () => {
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                 <Sparkles className="text-amber-400" /> 匹配分析报告
               </h2>
-              <p className="text-slate-500 text-sm font-mono mt-1">
-                已为您筛选 <span className="text-aurora-400 font-bold">{results.length}</span> 个高匹配岗位
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-slate-500 text-sm font-mono">
+                  当前展示: <span className="text-white font-bold">{batchIndex * BATCH_SIZE + 1} - {Math.min((batchIndex + 1) * BATCH_SIZE, allMatches.length)}</span> 
+                  <span className="mx-2 text-slate-700">|</span> 
+                  总匹配: <span className="text-aurora-400 font-bold">{allMatches.length}</span>
+                </p>
+              </div>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 justify-end">
+              {allMatches.length > BATCH_SIZE && (
+                 <Button 
+                   variant="outline" 
+                   onClick={handleNextBatch} 
+                   className="text-xs border-nebula-500/20 hover:border-nebula-500/50 hover:bg-nebula-500/10 text-nebula-300"
+                 >
+                   <Shuffle size={14} className="mr-2" /> 换一批岗位
+                 </Button>
+              )}
                <Button variant="outline" onClick={handleExport} className="text-xs group border-green-500/20 hover:border-green-500/50 hover:bg-green-500/10">
-                <FileSpreadsheet size={14} className="mr-2 text-green-400" /> 导出 Excel 报表
+                <FileSpreadsheet size={14} className="mr-2 text-green-400" /> 导出当前 Excel
               </Button>
               <Button variant="secondary" onClick={() => { setShowResults(false); setResumeText(''); }} className="text-xs">
-                <RefreshCw size={14} className="mr-2" /> 开启新一轮匹配
+                <RefreshCw size={14} className="mr-2" /> 开启新一轮
               </Button>
             </div>
           </div>
 
           <div className="grid gap-4">
-            {results.map((match, idx) => {
+            {displayedMatches.map((match, idx) => {
               return (
                 <div 
-                  key={match.jobId}
-                  style={{ animationDelay: `${idx * 0.05}s` }}
+                  key={`${match.jobId}-${idx}`}
+                  style={{ animationDelay: `${idx * 0.03}s` }}
                   className="bg-cosmos-900/40 backdrop-blur-md rounded-xl border border-glass-border p-5 hover:bg-cosmos-900/60 hover:-translate-y-0.5 transition-all duration-300 group relative overflow-hidden animate-slideUp fill-mode-backwards"
                 >
                   {/* 左侧匹配度指示条 */}
@@ -260,6 +293,20 @@ export const CoachDashboard: React.FC = () => {
               );
             })}
           </div>
+          
+          {/* 底部翻页提示 */}
+          {allMatches.length > BATCH_SIZE && (
+            <div className="mt-8 text-center">
+              <Button 
+                   variant="ghost" 
+                   onClick={handleNextBatch} 
+                   className="text-slate-500 hover:text-nebula-400"
+                 >
+                   <Shuffle size={14} className="mr-2" /> 
+                   看不中？换下一批 ({Math.min((batchIndex + 1) * BATCH_SIZE, allMatches.length)} / {allMatches.length})
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
