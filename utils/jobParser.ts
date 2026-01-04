@@ -1,3 +1,4 @@
+
 import { Job, ParseResult } from '../types';
 
 // 鲁棒的 ID 生成器，适配所有环境
@@ -30,18 +31,38 @@ export const parseJobText = (text: string): ParseResult[] => {
   const lines = text.split('\n').filter(line => line.trim() !== '');
   
   return lines.map(line => {
-    // 期望格式: 公司 | 职位 | 地点 | 链接
-    const parts = line.split('|').map(p => p.trim());
+    let parts: string[] = [];
+    
+    // 策略1: 尝试用竖线 "|" 分隔 (原有格式)
+    const pipeParts = line.split('|').map(p => p.trim());
+    
+    // 策略2: 尝试用制表符 Tab 分隔 (Excel/飞书表格直接复制的格式)
+    const tabParts = line.split('\t').map(p => p.trim());
+
+    // 决策逻辑：优先使用切分出更多有效字段的策略
+    if (tabParts.length >= 4) {
+      parts = tabParts;
+    } else if (pipeParts.length >= 4) {
+      parts = pipeParts;
+    } else {
+      // 策略3: 尝试多个空格分隔 (兜底)
+      const spaceParts = line.split(/\s{2,}/).map(p => p.trim());
+      if (spaceParts.length >= 4) {
+        parts = spaceParts;
+      } else {
+        parts = pipeParts; // 默认回退到竖线
+      }
+    }
 
     if (parts.length < 4) {
       return {
         valid: false,
         rawLine: line,
-        error: '格式错误。标准格式应为：公司 | 职位 | 地点 | 链接'
+        error: '格式识别失败。请检查是否包含：公司、职位、地点、链接 (支持 Excel 直接复制)'
       };
     }
 
-    // 基础提取
+    // 提取前4个字段，忽略多余的
     const [company, roles, location, rawLink] = parts;
     
     // 校验
@@ -49,7 +70,7 @@ export const parseJobText = (text: string): ParseResult[] => {
        return {
         valid: false,
         rawLine: line,
-        error: '检测到空字段，请检查输入是否完整。'
+        error: '检测到空字段，请检查表格是否存在空单元格。'
       };
     }
 
