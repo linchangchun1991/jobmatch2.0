@@ -1,81 +1,69 @@
+
 import { Job } from '../types';
-import { supabase } from '../lib/supabaseClient';
+
+// ⚠️ 重要：部署完 Cloudflare Worker 后，将获得的 URL 填入此处
+// 例如: "https://highmark-api.yourname.workers.dev"
+// 如果本地开发，通常不需要变，或者填入本地测试地址
+// Fix: Cast import.meta to any to resolve TS error: Property 'env' does not exist on type 'ImportMeta'.
+const API_BASE_URL = (import.meta as any).env.VITE_API_URL || "PLEASE_REPLACE_WITH_YOUR_WORKER_URL";
 
 export const dbService = {
   getJobs: async (): Promise<Job[]> => {
     try {
-      // 从 Supabase 的 'jobs' 表里获取所有数据
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false }); // 按时间倒序
-
-      if (error) {
-        console.error("[Supabase] 获取数据失败:", JSON.stringify(error, null, 2));
-        alert(`数据库连接出错: ${error.message}\n错误代码: ${error.code}\n请联系管理员检查 Supabase 配置。`);
+      if (API_BASE_URL.includes("PLEASE_REPLACE")) {
+        console.warn("API URL 未配置，请在 services/dbService.ts 中填入 Cloudflare Worker 地址");
         return [];
       }
 
-      console.log(`[Supabase] 成功加载 ${data?.length || 0} 个岗位`);
-      return (data || []) as Job[];
+      const response = await fetch(`${API_BASE_URL}/api/jobs`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      console.log(`[D1] 成功加载 ${data.length} 个岗位`);
+      return data;
     } catch (e: any) {
-      console.error("[DB] 网络异常:", e);
-      alert("网络请求异常: " + (e.message || "未知错误，请检查网络连接"));
+      console.error("[DB] 获取数据失败:", e);
+      alert("无法连接到 Cloudflare 数据库，请检查 API 配置。");
       return [];
     }
   },
 
   insertJobs: async (jobs: Job[]): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .insert(jobs);
+      const response = await fetch(`${API_BASE_URL}/api/jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jobs)
+      });
 
-      if (error) {
-        console.error("[Supabase] 插入详细错误:", JSON.stringify(error, null, 2));
-        
-        let tip = "";
-        if (error.code === '42501') {
-          tip = "\n[提示] 权限拒绝。请联系管理员检查 RLS 策略。";
-        } else if (error.code === '42P01') {
-           tip = "\n[提示] 表不存在。数据库尚未初始化 jobs 表。";
-        } else if (error.code === '23505') {
-           tip = "\n[提示] 数据重复。部分岗位 ID 已存在。";
-        }
-
-        alert(`保存失败: ${error.message}\n代码: ${error.code}${tip}`);
-        return false;
-      } else {
-        console.log(`[Supabase] 成功上传 ${jobs.length} 个岗位`);
-        alert(`成功入库 ${jobs.length} 个岗位！`);
-        return true;
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(err);
       }
+
+      console.log(`[D1] 成功上传 ${jobs.length} 个岗位`);
+      alert(`成功入库 ${jobs.length} 个岗位！`);
+      return true;
     } catch (e: any) {
       console.error("[DB] 插入异常:", e);
-      alert("保存时发生未知错误: " + (e.message || "请检查控制台"));
+      alert("保存失败: " + e.message);
       return false;
     }
   },
 
   deleteAllJobs: async (): Promise<boolean> => {
     try {
-      // 删除所有非空 ID 的数据
-      const { error, count } = await supabase
-        .from('jobs')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); 
+      const response = await fetch(`${API_BASE_URL}/api/jobs`, {
+        method: 'DELETE'
+      });
 
-      if (error) {
-        console.error("[Supabase] 删除失败:", error);
-        alert(`清空失败: ${error.message}`);
-        return false;
-      }
+      if (!response.ok) throw new Error("Delete failed");
       
-      console.log(`[Supabase] 已删除 ${count} 条数据`);
+      console.log(`[D1] 数据库已清空`);
       return true;
     } catch (e: any) {
       console.error("[DB] 删除异常:", e);
-      alert("删除操作发生异常");
+      alert("清空数据库失败");
       return false;
     }
   }

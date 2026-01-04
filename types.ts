@@ -1,3 +1,4 @@
+
 export type Role = 'guest' | 'bd' | 'coach';
 
 export interface Job {
@@ -24,7 +25,7 @@ export interface MatchResult {
   location: string;
   link: string;
   matchScore: number; // 0-100
-  reason: string; // One sentence recommendation
+  // reason 字段已移除
 }
 
 export enum AppState {

@@ -1,9 +1,5 @@
-import { Job, MatchResult } from "../types";
 
-// DeepSeek API Key (用户提供)
-const DEEPSEEK_API_KEY = "sk-db28451e48904598adcc1b789be67ee4";
-// 直连地址，不使用任何代理，防止云平台封禁
-const TARGET_URL = "https://api.deepseek.com/chat/completions";
+import { Job, MatchResult } from "../types";
 
 /**
  * Fisher-Yates 随机洗牌算法
@@ -18,13 +14,13 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 /**
- * 本地快速匹配引擎 (同步 & 兜底)
- * 作用：在 AI 调用失败或为了快速响应时使用。确保用户总是能看到结果。
+ * 本地快速匹配引擎
+ * 仅基于关键词和规则打分，不再生成文本理由
  */
 export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] => {
   if (!jobs || jobs.length === 0) return [];
 
-  console.log("[LocalEngine] 启动本地匹配逻辑...");
+  console.log("[LocalEngine] 启动极速匹配...");
 
   // 1. 简单的关键词提取
   const lowerResume = resumeText.toLowerCase();
@@ -49,11 +45,9 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     const combinedText = (job.roles + " " + job.company + " " + job.location).toLowerCase();
     
     // 关键词命中加分
-    let hitCount = 0;
     topKeywords.forEach(k => {
       if (combinedText.includes(k)) {
         score += 10;
-        hitCount++;
       }
     });
 
@@ -68,7 +62,7 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     // 随机因子 (让分数看起来更自然)
     score += Math.floor(Math.random() * 15);
 
-    return { job, score, hitCount };
+    return { job, score };
   });
 
   // 4. 排序并截取 Top 20
@@ -83,83 +77,6 @@ export const quickLocalMatch = (resumeText: string, jobs: Job[]): MatchResult[] 
     location: item.job.location,
     link: item.job.link,
     // 归一化分数到 85-99 之间
-    matchScore: Math.min(99, 85 + Math.floor(item.score % 15)), 
-    // 默认占位符，等待 AI 异步更新
-    reason: "系统正在结合行业趋势进行深度分析..."
+    matchScore: Math.min(99, 85 + Math.floor(item.score % 15))
   }));
-};
-
-/**
- * AI 深度分析 (批量模式)
- * 作用：分批次对已匹配的岗位进行“背调”，生成高质量推荐理由。
- */
-export const batchAnalyzeJobs = async (resumeText: string, matches: MatchResult[]): Promise<MatchResult[]> => {
-  if (matches.length === 0) return [];
-
-  // 构造精简的 Payload，防止 Token 溢出
-  const jobsPayload = matches.map(m => ({
-    id: m.jobId,
-    company: m.company,
-    role: m.role
-  }));
-
-  const systemPrompt = `
-    角色: 资深招聘专家。
-    任务: 根据候选人简历片段，分析其与目标岗位的匹配点。
-    输出要求: 
-    1. 返回一个纯 JSON 数组，严禁包含 markdown 标记 (如 \`\`\`json)。
-    2. 数组格式: [{"jobId": "...", "reason": "一句精简的推荐理由(30字以内)"}]
-    3. 理由要专业、吸引人，强调候选人优势。
-  `;
-
-  try {
-    const response = await fetch(TARGET_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${DEEPSEEK_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `简历片段: ${resumeText.slice(0, 600)}\n待分析岗位: ${JSON.stringify(jobsPayload)}` }
-        ],
-        stream: false,
-        temperature: 0.7,
-        max_tokens: 1500
-      })
-    });
-
-    if (!response.ok) {
-       // 如果遇到 401/429/500 等错误，抛出异常，触发降级
-       throw new Error(`AI API 响应异常: ${response.status}`);
-    }
-
-    const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || "[]";
-    
-    // 清理可能存在的 markdown 标记 (API 有时会不听话)
-    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    // 尝试截取合法的 JSON 数组部分
-    const firstBracket = content.indexOf('[');
-    const lastBracket = content.lastIndexOf(']');
-    if (firstBracket !== -1 && lastBracket !== -1) {
-      content = content.substring(firstBracket, lastBracket + 1);
-    }
-
-    const aiResults = JSON.parse(content);
-    
-    // 将 AI 结果合并回原始数据
-    return matches.map(m => {
-      const aiRes = aiResults.find((r: any) => r.jobId === m.jobId);
-      return aiRes ? { ...m, reason: aiRes.reason } : m;
-    });
-
-  } catch (e) {
-    console.warn("AI 分析服务暂时不可用，已切换至本地模式:", e);
-    // 出错时返回原样，保持界面不崩
-    return matches;
-  }
 };
