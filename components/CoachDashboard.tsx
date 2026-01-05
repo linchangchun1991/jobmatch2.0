@@ -99,14 +99,13 @@ export const CoachDashboard: React.FC = () => {
   const handleNextBatch = () => {
     const maxIndex = Math.ceil(allMatches.length / BATCH_SIZE) - 1;
     setBatchIndex(prev => prev >= maxIndex ? 0 : prev + 1);
-    // 滚动到顶部，提升体验
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleExport = () => {
     if (displayedMatches.length === 0) return;
 
-    // 仅导出当前批次，符合"所见即所得"
+    // 仅导出当前批次
     const exportData = displayedMatches.map((r, index) => ({
       "推荐排名": (batchIndex * BATCH_SIZE) + index + 1,
       "公司名称": r.company,

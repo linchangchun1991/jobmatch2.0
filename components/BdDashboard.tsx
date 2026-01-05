@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { parseJobText } from '../utils/jobParser';
 import { Job, ParseResult } from '../types';
 import { dbService } from '../services/dbService';
 import { Button } from './ui/Button';
-import { UploadCloud, AlertCircle, CheckCircle2, Database, Terminal, FileCode, Trash2, PlusCircle, Save } from 'lucide-react';
+import { UploadCloud, AlertCircle, CheckCircle2, Database, Terminal, FileCode, Trash2, Save } from 'lucide-react';
 
 export const BdDashboard: React.FC = () => {
   const [inputText, setInputText] = useState('');
@@ -24,7 +25,6 @@ export const BdDashboard: React.FC = () => {
 
   const handleParse = () => {
     setIsParsing(true);
-    // 模拟微小的延迟，给用户操作反馈
     setTimeout(() => {
       const results = parseJobText(inputText);
       setParsedJobs(results);
@@ -69,7 +69,7 @@ export const BdDashboard: React.FC = () => {
             岗位智能清洗引擎
           </h1>
           <p className="text-slate-400 mt-2 text-sm max-w-2xl leading-relaxed">
-            Raw Data Processor: 粘贴非结构化文本，系统自动执行 ETL 清洗并存入 Supabase 云端数据库。
+            Raw Data Processor: 粘贴非结构化文本，系统自动执行 ETL 清洗并存入云端数据库。
           </p>
         </div>
         <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
